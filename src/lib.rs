@@ -61,3 +61,39 @@ pub async fn get_platform_fee() -> Result<String, Box<dyn std::error::Error>> {
     let platform_fee_eth = format!("{} {}", parse_to_denomination(platform_fee_wei, unit), unit);
     Ok(platform_fee_eth)
 }
+
+#[tokio::main]
+pub async fn print_drawn_numbers_for_round(n: U256) -> Result<(), Box<dyn std::error::Error>> {
+    let contract = get_contract_instance().await?;
+    let result = contract.unpack_result_for_round(n).call().await?;
+
+    // TODO: Let it public on blockchain
+    let bonus_multiplier = [
+        0, 0, 0, 0, 0, 10000, 7500, 5000, 
+        2500, 1000, 500, 300, 200, 150, 100, 
+        90, 80, 70, 60, 50, 40, 30, 25, 20, 
+        15, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1
+    ]; 
+
+    for i in 0..5 {
+        print!("{} ", result[i]);
+    }
+    println!();
+    for i in 5..15 {
+        let left_mul = bonus_multiplier[i];
+        let middle_mul = bonus_multiplier[i+10];
+        let right_mul = bonus_multiplier[i+20];
+
+        let left_num = result[i];
+        let middle_num = result[i+10];
+        let right_num = result[i+20];
+
+        print!("{left_mul:>5}: {left_num:>2}     ");
+        print!("{middle_mul:>2}: {middle_num:>2}     ");
+        print!("{right_mul:>2}: {right_num:>2}");
+        println!();
+    }
+
+    Ok(())
+
+}
