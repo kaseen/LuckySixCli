@@ -21,6 +21,17 @@ async fn get_contract_instance() -> Result<LuckySix<Provider<Http>>, Box<dyn std
     Ok(contract)
 }
 
+fn parse_to_denomination(input: U256, to_denomnination: &str) -> String {
+    let parsed_result = match to_denomnination {
+        "eth" => format_units(input, "Ether"),
+        "gwei" => format_units(input, "Gwei"),
+        "wei" => format_units(input, "Wei"),
+        // TODO
+        _ => Ok(String::from("Error"))
+    };
+    String::from(parsed_result.unwrap().trim_end_matches('0').trim_end_matches('.'))
+}
+
 #[tokio::main]
 pub async fn get_round_info() -> Result<(U256, U256, bool), Box<dyn std::error::Error>> {
     let contract = get_contract_instance().await?;
@@ -32,9 +43,7 @@ pub async fn get_round_info() -> Result<(U256, U256, bool), Box<dyn std::error::
 pub async fn get_platform_fee() -> Result<String, Box<dyn std::error::Error>> {
     let contract = get_contract_instance().await?;
     let platform_fee_wei = contract.platform_fee().call().await?;
-    // TODO: Make match function to format to eth wei gwei
-    let platform_fee_eth = format!("{} ETH", 
-        format_units(platform_fee_wei, "ether").unwrap().trim_end_matches('0')
-    ).to_string();
+    let unit = "eth";
+    let platform_fee_eth = format!("{} {}", parse_to_denomination(platform_fee_wei, unit), unit);
     Ok(platform_fee_eth)
 }
