@@ -1,7 +1,10 @@
 use ethers::{
     providers::{ Http, Provider },
+    signers::{ LocalWallet, Signer },
     types::{ Address, U256 },
+    middleware::SignerMiddleware,
     utils::format_units,
+    core::types::Chain,
     prelude::abigen
 };
 use chrono::{
@@ -9,6 +12,8 @@ use chrono::{
     Utc, Local
 };
 
+type BoxError = Box<dyn std::error::Error>;
+type Client = SignerMiddleware<Provider<Http>, LocalWallet>;
 abigen!(LuckySix, "abi.json");
 
 /*
@@ -18,12 +23,35 @@ abigen!(LuckySix, "abi.json");
  *  - Set time zone, ex: get_round_info()
  */
 
-async fn get_contract_instance() -> Result<LuckySix<Provider<Http>>, Box<dyn std::error::Error>> {
+async fn get_provider() -> Result<Provider<Http>, BoxError> {
     let provider_url = std::env::var("HTTP_SEPOLIA").expect("HTTP_SEPOLIA environment variable not found");
+    let provider = Provider::<Http>::try_from(provider_url)?;
+
+    Ok(provider)
+}
+
+async fn get_wallet() -> Result<LocalWallet, BoxError> {
+    let private_key = std::env::var("PRIVATE_KEY").expect("PRIVATE_KEY environment variable not found");
+    let wallet = private_key.parse::<LocalWallet>()?.with_chain_id(Chain::Sepolia);
+
+    Ok(wallet)
+}
+
+async fn get_client() -> Result<Client, BoxError> {
+    let provider = get_provider().await?;
+    let wallet = get_wallet().await?;
+    let client = SignerMiddleware::new(provider, wallet);
+
+    Ok(client)
+}
+
+async fn get_contract_instance() -> Result<LuckySix<Client>, BoxError> {
+    let client = get_client().await?;
+
     let lucky_six_address = "0x5d65cff1f21fcfedd194ef7e15e66ae31ab6dcb7";
-    let provider = Provider::<Http>::try_from(provider_url)?; 
     let address: Address = lucky_six_address.parse()?;
-    let contract = LuckySix::new(address, provider.into());
+    let contract = LuckySix::new(address, client.into()); 
+
     Ok(contract)
 }
 
@@ -39,7 +67,7 @@ fn parse_to_denomination(input: U256, to_denomnination: &str) -> String {
 }
 
 #[tokio::main]
-pub async fn get_round_info() -> Result<(U256, String, bool), Box<dyn std::error::Error>> {
+pub async fn get_round_info() -> Result<(U256, String, bool), BoxError> {
     let contract = get_contract_instance().await?;
     let round_info = contract.round_info().call().await?;
 
@@ -54,7 +82,7 @@ pub async fn get_round_info() -> Result<(U256, String, bool), Box<dyn std::error
 }
 
 #[tokio::main]
-pub async fn get_platform_fee() -> Result<String, Box<dyn std::error::Error>> {
+pub async fn get_platform_fee() -> Result<String, BoxError> {
     let contract = get_contract_instance().await?;
     let platform_fee_wei = contract.platform_fee().call().await?;
     let unit = "eth";
@@ -63,7 +91,7 @@ pub async fn get_platform_fee() -> Result<String, Box<dyn std::error::Error>> {
 }
 
 #[tokio::main]
-pub async fn print_drawn_numbers_for_round(n: U256) -> Result<(), Box<dyn std::error::Error>> {
+pub async fn print_drawn_numbers_for_round(n: U256) -> Result<(), BoxError> {
     let contract = get_contract_instance().await?;
     let result = contract.unpack_result_for_round(n).call().await?;
 
@@ -95,5 +123,15 @@ pub async fn print_drawn_numbers_for_round(n: U256) -> Result<(), Box<dyn std::e
     }
 
     Ok(())
-
 }
+
+#[tokio::main]
+pub async fn get_tickets_for_round(n: U256) -> Result<(), BoxError> {
+    let contract = get_contract_instance().await?;
+    let res = contract.get_tickets_for_round(n).call().await?;
+
+    println!("{:?}", res);
+
+    Ok(())
+}
+
