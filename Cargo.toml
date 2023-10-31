@@ -7,3 +7,5 @@ edition = "2021"
 ethers = "2.0"
 chrono = "0.4.31"
 tokio = { version = "1.33.0", features = ["full"] }
+config = "0.13.1"
+lazy_static = "1.4.0"

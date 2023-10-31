@@ -20,6 +20,16 @@ abigen!(LuckySix, "abi.json");
  *  - Set time zone, ex: get_round_info()
  */
 
+use lazy_static::lazy_static;
+use config::Config;
+
+lazy_static! {
+    pub static ref CFG: Config = Config::builder()
+        .add_source(config::File::with_name("Config.toml"))
+        .build()
+        .unwrap(); 
+}
+
 async fn get_provider() -> Result<Provider<Http>, BoxError> {
     let provider_url =
         std::env::var("HTTP_SEPOLIA").expect("HTTP_SEPOLIA environment variable not found");
