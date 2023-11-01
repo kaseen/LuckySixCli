@@ -1,3 +1,4 @@
+use std::io::Write;
 use crate::config::get_config_key;
 use chrono::{prelude::DateTime, Local, Utc};
 use ethers::{
@@ -55,7 +56,14 @@ fn parse_to_denomination(input: U256, to_denomnination: &str) -> Result<String, 
         "wei" => format_units(input, "Wei"),
         _ => Err(ConversionError::UnrecognizedUnits(to_denomnination.to_string()))
     };
-    parsed_result
+
+    let result = format!(
+        "{} {}", 
+        parsed_result.unwrap().trim_end_matches('0').trim_end_matches('0'),
+        to_denomnination
+    );
+
+    Ok(result)
 }
 
 #[tokio::main]
@@ -79,53 +87,58 @@ pub async fn get_platform_fee() -> Result<String, BoxError> {
     let platform_fee_wei = contract.platform_fee().call().await?;
     let unit = "eth";
 
-    let to_denomination = parse_to_denomination(platform_fee_wei, unit).unwrap();
-    let parsed_result = to_denomination.trim_end_matches('0').trim_end_matches('0');
-    
-    let platform_fee_eth = format!("{} {}", parsed_result, unit);
+    let result = parse_to_denomination(platform_fee_wei, unit).unwrap();
 
-    Ok(platform_fee_eth)
+    Ok(result)
 }
 
 #[tokio::main]
-pub async fn print_drawn_numbers_for_round(n: U256) -> Result<(), BoxError> {
+pub async fn get_drawn_numbers_for_round(n: U256) -> Result<Vec<u8>, BoxError> {
     let contract = get_contract_instance().await?;
-    let result = contract.unpack_result_for_round(n).call().await?;
+    let unpacked = contract.unpack_result_for_round(n).call().await?;
 
     // TODO: Let it public on blockchain
     let bonus_multiplier = [
         0, 0, 0, 0, 0, 10000, 7500, 5000, 2500, 1000, 500, 300, 200, 150, 100, 90, 80, 70, 60, 50,
         40, 30, 25, 20, 15, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1,
     ];
+    
+    let mut result = Vec::new();
 
     for i in 0..5 {
-        print!("{} ", result[i]);
+        write!(&mut result, "{} ", unpacked[i])?;
     }
-    println!();
+    writeln!(&mut result)?;
     for i in 5..15 {
         let left_mul = bonus_multiplier[i];
         let middle_mul = bonus_multiplier[i + 10];
         let right_mul = bonus_multiplier[i + 20];
 
-        let left_num = result[i];
-        let middle_num = result[i + 10];
-        let right_num = result[i + 20];
+        let left_num = unpacked[i];
+        let middle_num = unpacked[i + 10];
+        let right_num = unpacked[i + 20];
 
-        print!("{left_mul:>5}: {left_num:>2}     ");
-        print!("{middle_mul:>2}: {middle_num:>2}     ");
-        print!("{right_mul:>2}: {right_num:>2}");
-        println!();
+        write!(&mut result, "{left_mul:>5}: {left_num:>2}     ")?;
+        write!(&mut result, "{middle_mul:>2}: {middle_num:>2}     ")?;
+        write!(&mut result, "{right_mul:>2}: {right_num:>2}\n")?;
     }
-
-    Ok(())
+    
+    Ok(result)
 }
 
 #[tokio::main]
-pub async fn get_tickets_for_round(n: U256) -> Result<(), BoxError> {
+pub async fn get_tickets_for_round(n: U256) -> Result<Vec<u8>, BoxError> {
     let contract = get_contract_instance().await?;
     let res = contract.get_tickets_for_round(n).call().await?;
 
-    println!("{:?}", res);
+    let mut result = Vec::new();
 
-    Ok(())
+    for ticket in res {
+        writeln!(&mut result, "{:?} for {}", ticket.combination, parse_to_denomination(ticket.bet, "eth")?)?;
+    }
+
+    // Remove last newline character
+    result.pop();
+
+    Ok(result)
 }
