@@ -110,9 +110,25 @@ pub async fn get_platform_fee() -> Result<String, BoxError> {
 #[tokio::main]
 pub async fn get_lottery_state() -> Result<LotteryState, BoxError> {
     let contract = get_contract_instance().await?;
-    let lottery_state: LotteryState = contract.lottery_state().await?.into();
+    let lottery_state: LotteryState = contract.lottery_state().call().await?.into();
 
     Ok(lottery_state)
+}
+
+#[tokio::main]
+pub async fn play_ticket(combination: [U256; 6]) -> Result<(), BoxError> {
+    let contract = get_contract_instance().await?;
+
+    match contract.play_ticket(combination).await {
+        Ok(res) => {
+            // TODO: Event
+            println!("play_ticket res: {:?}", res);
+            return Ok(())
+        },
+        Err(e) => {
+            panic!("{}", e);
+        }
+    };
 }
 
 #[tokio::main]
@@ -147,6 +163,31 @@ pub async fn get_drawn_numbers_for_round(n: U256) -> Result<Vec<u8>, BoxError> {
     }
     
     Ok(result)
+}
+
+#[tokio::main]
+pub async fn get_payout_for_ticket(round_number: U256, ticket_index: U256) -> Result<(), BoxError> {
+    let contract = get_contract_instance().await?;
+
+    match contract.get_payout_for_ticket(round_number, ticket_index).await {
+        Ok(res) => {
+            // TODO: Event
+            println!("get_payout_for_ticket res: {:?}", res);
+            return Ok(())
+        },
+        Err(e) => {
+            panic!("{}", e);
+        }
+    };
+}
+
+#[tokio::main]
+pub async fn get_platform_balance() -> Result<String, BoxError> {
+    let contract = get_contract_instance().await?;
+    let res = contract.platform_balance().call().await?;
+    let platform_balance = parse_to_denomination(res, "eth").unwrap();
+
+    Ok(platform_balance)
 }
 
 #[tokio::main]
