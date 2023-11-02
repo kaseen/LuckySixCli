@@ -15,6 +15,21 @@ type BoxError = Box<dyn std::error::Error>;
 type Client = SignerMiddleware<Provider<Http>, LocalWallet>;
 abigen!(LuckySix, "abi.json");
 
+#[derive(Debug)]
+pub enum LotteryState { READY, STARTED, CALCULATING, DRAWING, CLOSED }
+impl From<u8> for LotteryState {
+    fn from(num: u8) -> Self {
+        match num {
+            0 => LotteryState::READY,
+            1 => LotteryState::STARTED,
+            2 => LotteryState::CALCULATING,
+            3 => LotteryState::DRAWING,
+            4 => LotteryState::CLOSED,
+            _ => panic!("Invalid lottery state")
+        }
+    }
+}
+
 async fn get_provider() -> Result<Provider<Http>, BoxError> {
     let provider_url = get_config_key::<String>("http_sepolia");
     let provider = Provider::<Http>::try_from(provider_url)?;
@@ -90,6 +105,14 @@ pub async fn get_platform_fee() -> Result<String, BoxError> {
     let result = parse_to_denomination(platform_fee_wei, unit).unwrap();
 
     Ok(result)
+}
+
+#[tokio::main]
+pub async fn get_lottery_state() -> Result<LotteryState, BoxError> {
+    let contract = get_contract_instance().await?;
+    let lottery_state: LotteryState = contract.lottery_state().await?.into();
+
+    Ok(lottery_state)
 }
 
 #[tokio::main]
