@@ -116,14 +116,15 @@ pub async fn get_lottery_state() -> Result<LotteryState, BoxError> {
 }
 
 #[tokio::main]
-pub async fn play_ticket(combination: [U256; 6]) -> Result<(), BoxError> {
+pub async fn play_ticket(combination: [U256; 6], value: U256) -> Result<[u8; 32], BoxError> {
     let contract = get_contract_instance().await?;
+    let tx = contract.play_ticket(combination).value(value);
 
-    match contract.play_ticket(combination).await {
+    match tx.send().await {
         Ok(res) => {
-            // TODO: Event
-            println!("play_ticket res: {:?}", res);
-            return Ok(())
+            let tx_hash = res.tx_hash();
+            let tx_hash_bytes = tx_hash.to_fixed_bytes();
+            return Ok(tx_hash_bytes)
         },
         Err(e) => {
             panic!("{}", e);
