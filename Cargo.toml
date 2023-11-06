@@ -10,3 +10,4 @@ tokio = { version = "1.33.0", features = ["full"] }
 config = "0.13.1"
 lazy_static = "1.4.0"
 serde = "1.0.190"
+eyre = "0.3"
