@@ -1,22 +1,28 @@
-use std::io::Write;
 use crate::config::get_config_key;
 use chrono::{prelude::DateTime, Local, Utc};
 use ethers::{
-    utils::{ ConversionError, format_units },
-    signers::{LocalWallet, Signer},
-    providers::{Http, Provider},
-    types::{Address, U256},
-    middleware::SignerMiddleware,
     core::types::Chain,
+    middleware::SignerMiddleware,
     prelude::abigen,
+    providers::{Http, Provider},
+    signers::{LocalWallet, Signer},
+    types::{Address, U256},
+    utils::{format_units, ConversionError},
 };
+use std::io::Write;
 
 type BoxError = Box<dyn std::error::Error>;
 type Client = SignerMiddleware<Provider<Http>, LocalWallet>;
-abigen!(LuckySix, "abi.json");
+abigen!(LuckySix, "luckysix.json");
 
 #[derive(Debug)]
-pub enum LotteryState { READY, STARTED, CALCULATING, DRAWING, CLOSED }
+pub enum LotteryState {
+    READY,
+    STARTED,
+    CALCULATING,
+    DRAWING,
+    CLOSED,
+}
 impl From<u8> for LotteryState {
     fn from(num: u8) -> Self {
         match num {
@@ -25,7 +31,7 @@ impl From<u8> for LotteryState {
             2 => LotteryState::CALCULATING,
             3 => LotteryState::DRAWING,
             4 => LotteryState::CLOSED,
-            _ => panic!("Invalid lottery state")
+            _ => panic!("Invalid lottery state"),
         }
     }
 }
@@ -66,15 +72,20 @@ async fn get_contract_instance() -> Result<LuckySix<Client>, BoxError> {
 
 fn parse_to_denomination(input: U256, to_denomnination: &str) -> Result<String, ConversionError> {
     let parsed_result = match to_denomnination {
-        "eth" => format_units(input, "Ether"), 
+        "eth" => format_units(input, "Ether"),
         "gwei" => format_units(input, "Gwei"),
         "wei" => format_units(input, "Wei"),
-        _ => Err(ConversionError::UnrecognizedUnits(to_denomnination.to_string()))
+        _ => Err(ConversionError::UnrecognizedUnits(
+            to_denomnination.to_string(),
+        )),
     };
 
     let result = format!(
-        "{} {}", 
-        parsed_result.unwrap().trim_end_matches('0').trim_end_matches('0'),
+        "{} {}",
+        parsed_result
+            .unwrap()
+            .trim_end_matches('0')
+            .trim_end_matches('0'),
         to_denomnination
     );
 
@@ -124,8 +135,8 @@ pub async fn play_ticket(combination: [U256; 6], value: U256) -> Result<[u8; 32]
         Ok(res) => {
             let tx_hash = res.tx_hash();
             let tx_hash_bytes = tx_hash.to_fixed_bytes();
-            return Ok(tx_hash_bytes)
-        },
+            return Ok(tx_hash_bytes);
+        }
         Err(e) => {
             panic!("{}", e);
         }
@@ -142,7 +153,7 @@ pub async fn get_drawn_numbers_for_round(n: U256) -> Result<Vec<u8>, BoxError> {
         0, 0, 0, 0, 0, 10000, 7500, 5000, 2500, 1000, 500, 300, 200, 150, 100, 90, 80, 70, 60, 50,
         40, 30, 25, 20, 15, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1,
     ];
-    
+
     let mut result = Vec::new();
 
     for i in 0..5 {
@@ -162,7 +173,7 @@ pub async fn get_drawn_numbers_for_round(n: U256) -> Result<Vec<u8>, BoxError> {
         write!(&mut result, "{middle_mul:>2}: {middle_num:>2}     ")?;
         write!(&mut result, "{right_mul:>2}: {right_num:>2}\n")?;
     }
-    
+
     Ok(result)
 }
 
@@ -170,12 +181,15 @@ pub async fn get_drawn_numbers_for_round(n: U256) -> Result<Vec<u8>, BoxError> {
 pub async fn get_payout_for_ticket(round_number: U256, ticket_index: U256) -> Result<(), BoxError> {
     let contract = get_contract_instance().await?;
 
-    match contract.get_payout_for_ticket(round_number, ticket_index).await {
+    match contract
+        .get_payout_for_ticket(round_number, ticket_index)
+        .await
+    {
         Ok(res) => {
             // TODO: Event
             println!("get_payout_for_ticket res: {:?}", res);
-            return Ok(())
-        },
+            return Ok(());
+        }
         Err(e) => {
             panic!("{}", e);
         }
@@ -199,7 +213,12 @@ pub async fn get_tickets_for_round(n: U256) -> Result<Vec<u8>, BoxError> {
     let mut result = Vec::new();
 
     for ticket in res {
-        writeln!(&mut result, "{:?} for {}", ticket.combination, parse_to_denomination(ticket.bet, "eth")?)?;
+        writeln!(
+            &mut result,
+            "{:?} for {}",
+            ticket.combination,
+            parse_to_denomination(ticket.bet, "eth")?
+        )?;
     }
 
     // Remove last newline character
