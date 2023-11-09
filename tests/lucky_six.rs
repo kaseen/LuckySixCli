@@ -1,14 +1,16 @@
 use ethers::{
     abi::Tokenizable,
-    contract::abigen,
+    contract::{abigen, EthEvent},
     middleware::SignerMiddleware,
-    providers::{Http, Provider},
+    providers::{Http, Provider, StreamExt},
     signers::{LocalWallet, Signer},
     types::{Bytes, U256},
     utils::{Anvil, AnvilInstance},
 };
+
 use eyre::Result;
 use std::sync::Arc;
+// use luckysix::LotteryState;
 
 abigen!(LuckySix, "luckysix.json");
 
@@ -82,35 +84,45 @@ async fn oracle_perform(oracle: &LuckySix<Client>) -> Result<()> {
     Ok(())
 }
 
+#[derive(EthEvent)]
+struct RoundStarted {
+    num_of_round: U256
+}
+
+#[derive(EthEvent)]
+struct CountdownStarted {
+    num_of_round: U256
+}
+
 #[tokio::test]
-async fn test() -> Result<()> {
+async fn integration_test() -> Result<()> {
     let (owner_c, oracle_c, user_c, _anvil) = init_test().await.unwrap();
 
-    let _ = oracle_perform(&oracle_c).await;
+    // Events
+    let event_round_started = user_c.event::<RoundStarted>();
+    let event_countdown_started = user_c.event::<CountdownStarted>();
 
+    // Assert if RoundStarted emitted
+    let mut stream = event_round_started.stream().await?.take(1);
+    let _ = oracle_perform(&oracle_c).await;
+    let event_received = stream.next().await.unwrap().unwrap();
+    assert_eq!(event_received.num_of_round, U256::from(1));
+
+    // Assert if CountdownStarted emitted
+    let mut stream = event_countdown_started.stream().await?.take(1);
     let combination = luckysix::convert_to_u256_arr([1, 2, 3, 4, 5, 6]);
     let value = U256::from(15000000000000000_u128); // 0.15eth
     let _ = owner_c.play_ticket(combination).value(value).send().await;
+    let event_received = stream.next().await.unwrap().unwrap();
+    assert_eq!(event_received.num_of_round, U256::from(1));
+    
+    // Assert if CountdownStarted emitted
+    let mut stream = event_countdown_started.stream().await?.take(1);
+    let combination = luckysix::convert_to_u256_arr([1, 2, 3, 4, 5, 6]);
+    let value = U256::from(15000000000000000_u128); // 0.15eth
     let _ = owner_c.play_ticket(combination).value(value).send().await;
-
-    let _ = user_c.play_ticket(combination).value(value).send().await;
-
-    let res = owner_c.lottery_state().call().await.unwrap();
-    println!("{:?}", res);
-
-    let res = owner_c
-        .get_tickets_for_round(U256::from(1))
-        .call()
-        .await
-        .unwrap();
-    println!("{:?}", res);
-
-    let res = user_c
-        .get_tickets_for_round(U256::from(1))
-        .call()
-        .await
-        .unwrap();
-    println!("{:?}", res);
+    let event_received = stream.next().await.unwrap().unwrap();
+    assert_eq!(event_received.num_of_round, U256::from(1));
 
     Ok(())
 }
